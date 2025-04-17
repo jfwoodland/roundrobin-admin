@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "./firebaseConfig";
+import { db, auth } from "./firebaseConfig";
 import {
   collection,
   doc,
@@ -30,7 +30,10 @@ import {
   Tab,
   Box,
   Chip,
+  Button,
 } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
 
 // 🔹 Custom components
 import SortableUserItem from "./components/SortableUserItem";
@@ -50,9 +53,24 @@ const AdminPanel = () => {
   const [tabIndex, setTabIndex] = useState(0);
   const [newUserName, setNewUserName] = useState("");
   const [newUserPhone, setNewUserPhone] = useState("");
+  const [editUserId, setEditUserId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const sensors = useSensors(useSensor(PointerSensor));
   const accountId = "demo-account-001";
+  const navigate = useNavigate();
 
+  // 🔒 Redirect to login if not authenticated
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        navigate("/login");
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // 🔄 Load users
   useEffect(() => {
     const q = query(
       collection(db, "accounts", accountId, "users"),
@@ -118,18 +136,21 @@ const AdminPanel = () => {
     }
   };
 
-  const handleUpdateUser = async (userId, name, phone) => {
-    const phoneObj = parsePhoneNumberFromString(phone, "US");
+  const handleEditUser = async () => {
+    const phoneObj = parsePhoneNumberFromString(editPhone, "US");
     if (!phoneObj || !phoneObj.isValid()) {
       alert("Please enter a valid 10-digit phone number.");
       return;
     }
 
     try {
-      await updateDoc(doc(db, "accounts", accountId, "users", userId), {
-        name,
+      await updateDoc(doc(db, "accounts", accountId, "users", editUserId), {
+        name: editName,
         phone_number: phoneObj.number,
       });
+      setEditUserId(null);
+      setEditName("");
+      setEditPhone("");
     } catch (err) {
       console.error("Error updating user:", err);
     }
@@ -141,7 +162,16 @@ const AdminPanel = () => {
         <Typography variant="h4" gutterBottom>
           Admin Panel
         </Typography>
-
+        <Button
+          variant="outlined"
+          color="secondary"
+          sx={{ float: "right" }}
+          onClick={async () => {
+            await auth.signOut();
+          }}
+        >
+          Logout
+        </Button>
         <Tabs
           value={tabIndex}
           onChange={(e, newIndex) => setTabIndex(newIndex)}
@@ -174,15 +204,22 @@ const AdminPanel = () => {
         </TabPanel>
 
         <TabPanel value={tabIndex} index={1}>
-          <Typography variant="h6">Add a New User</Typography>
+          <Typography variant="h6">
+            {editUserId ? "Edit User" : "Add a New User"}
+          </Typography>
 
           <UserForm
-            onSubmit={handleAddUser}
-            name={newUserName}
-            phone={newUserPhone}
-            setName={setNewUserName}
-            setPhone={setNewUserPhone}
-            isEdit={false}
+            onSubmit={editUserId ? handleEditUser : handleAddUser}
+            name={editUserId ? editName : newUserName}
+            phone={editUserId ? editPhone : newUserPhone}
+            setName={editUserId ? setEditName : setNewUserName}
+            setPhone={editUserId ? setEditPhone : setNewUserPhone}
+            isEdit={!!editUserId}
+            onCancel={() => {
+              setEditUserId(null);
+              setEditName("");
+              setEditPhone("");
+            }}
           />
 
           <Typography variant="h6" sx={{ mt: 4 }}>
@@ -199,7 +236,11 @@ const AdminPanel = () => {
               <UserCard
                 key={user.id}
                 user={user}
-                onUpdate={handleUpdateUser}
+                onUpdate={(id, name, phone) => {
+                  setEditUserId(id);
+                  setEditName(name);
+                  setEditPhone(phone);
+                }}
                 onDelete={handleDeleteUser}
               />
             ))}

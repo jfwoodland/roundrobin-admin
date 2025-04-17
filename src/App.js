@@ -1,20 +1,27 @@
 // src/App.js
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebaseConfig";
 import AdminPanel from "./AdminPanel";
+import LoginPage from "./LoginPage";
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<AdminPanel />} />
-        {/* You can add more routes later */}
-      </Routes>
-    </Router>
-  );
-}
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setCheckingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (checkingAuth) {
+    return <div>Loading...</div>;
+  }
+
+  return user ? <AdminPanel /> : <LoginPage />;
+};
 
 export default App;
-
-
-
