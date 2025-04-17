@@ -42,20 +42,12 @@ import UserForm from "./components/UserForm";
 import TabPanel from "./components/TabPanel";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 
-// 🔹 Utils
-import {
-  normalizePhoneForStorage,
-  formatDisplayPhone,
-} from "./utils/phoneFormatters";
 
 const AdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [tabIndex, setTabIndex] = useState(0);
   const [newUserName, setNewUserName] = useState("");
   const [newUserPhone, setNewUserPhone] = useState("");
-  const [editUserId, setEditUserId] = useState(null);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
   const sensors = useSensors(useSensor(PointerSensor));
   const accountId = "demo-account-001";
   const navigate = useNavigate();
@@ -136,25 +128,23 @@ const AdminPanel = () => {
     }
   };
 
-  const handleEditUser = async () => {
-    const phoneObj = parsePhoneNumberFromString(editPhone, "US");
+  const handleUpdateUser = async (userId, updatedName, updatedPhone) => {
+    const phoneObj = parsePhoneNumberFromString(updatedPhone, "US");
     if (!phoneObj || !phoneObj.isValid()) {
       alert("Please enter a valid 10-digit phone number.");
       return;
     }
-
+  
     try {
-      await updateDoc(doc(db, "accounts", accountId, "users", editUserId), {
-        name: editName,
+      await updateDoc(doc(db, "accounts", accountId, "users", userId), {
+        name: updatedName,
         phone_number: phoneObj.number,
       });
-      setEditUserId(null);
-      setEditName("");
-      setEditPhone("");
     } catch (err) {
       console.error("Error updating user:", err);
     }
   };
+  
 
   return (
     <Container maxWidth="md">
@@ -205,21 +195,16 @@ const AdminPanel = () => {
 
         <TabPanel value={tabIndex} index={1}>
           <Typography variant="h6">
-            {editUserId ? "Edit User" : "Add a New User"}
+            {"Add a New User"}
           </Typography>
 
           <UserForm
-            onSubmit={editUserId ? handleEditUser : handleAddUser}
-            name={editUserId ? editName : newUserName}
-            phone={editUserId ? editPhone : newUserPhone}
-            setName={editUserId ? setEditName : setNewUserName}
-            setPhone={editUserId ? setEditPhone : setNewUserPhone}
-            isEdit={!!editUserId}
-            onCancel={() => {
-              setEditUserId(null);
-              setEditName("");
-              setEditPhone("");
-            }}
+            onSubmit={handleAddUser}
+            name={newUserName}
+            phone={newUserPhone}
+            setName={setNewUserName}
+            setPhone={setNewUserPhone}
+            isEdit={false}
           />
 
           <Typography variant="h6" sx={{ mt: 4 }}>
@@ -236,11 +221,7 @@ const AdminPanel = () => {
               <UserCard
                 key={user.id}
                 user={user}
-                onUpdate={(id, name, phone) => {
-                  setEditUserId(id);
-                  setEditName(name);
-                  setEditPhone(phone);
-                }}
+                onUpdate={handleUpdateUser}
                 onDelete={handleDeleteUser}
               />
             ))}
