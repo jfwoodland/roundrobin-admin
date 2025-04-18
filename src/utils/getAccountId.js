@@ -1,15 +1,19 @@
 // src/utils/getAccountId.js
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebaseConfig";
+import { db, auth } from "../firebaseConfig";
 
-export const getAccountIdForCurrentUser = async () => {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return null;
+export const getAccountId = async () => {
+  const user = auth.currentUser;
+  if (!user) return null;
 
-  const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-  if (userDoc.exists()) {
-    return userDoc.data().accountId;
+  const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    return userSnap.data().accountId;
   }
 
   return null;
 };
+
+export default getAccountId;

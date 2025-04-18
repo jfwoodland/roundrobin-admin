@@ -1,3 +1,4 @@
+// src/AdminPanel.js
 import React, { useEffect, useState } from "react";
 import { db, auth } from "./firebaseConfig";
 import {
@@ -35,41 +36,42 @@ import {
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 
-// 🔹 Custom components
 import SortableUserItem from "./components/SortableUserItem";
 import UserCard from "./components/UserCard";
 import UserForm from "./components/UserForm";
 import TabPanel from "./components/TabPanel";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-
+import { formatDisplayPhone } from "./utils/phoneFormatters";
+import getAccountId from "./utils/getAccountId";
 
 const AdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [tabIndex, setTabIndex] = useState(0);
+  const [accountId, setAccountId] = useState(null);
   const [newUserName, setNewUserName] = useState("");
   const [newUserPhone, setNewUserPhone] = useState("");
   const sensors = useSensors(useSensor(PointerSensor));
-  const accountId = "demo-account-001";
   const navigate = useNavigate();
 
-  // 🔒 Redirect to login if not authenticated
+  // 🔐 Protect route
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/login");
+      } else {
+        const id = await getAccountId(user.uid);
+        setAccountId(id);
       }
     });
     return () => unsubscribe();
   }, [navigate]);
 
-  // 🔄 Load users
+  // 🔄 Load users from this user's account
   useEffect(() => {
-    const q = query(
-      collection(db, "accounts", accountId, "users"),
-      orderBy("order")
-    );
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const loadedUsers = querySnapshot.docs.map((doc) => ({
+    if (!accountId) return;
+    const q = query(collection(db, "accounts", accountId, "users"), orderBy("order"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loadedUsers = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -86,18 +88,17 @@ const AdminPanel = () => {
       const newUsers = arrayMove(users, oldIndex, newIndex);
       setUsers(newUsers);
 
-      const batchUpdates = newUsers.map((user, idx) =>
+      const batch = newUsers.map((user, idx) =>
         updateDoc(doc(db, "accounts", accountId, "users", user.id), {
           order: idx,
         })
       );
-      await Promise.all(batchUpdates);
+      await Promise.all(batch);
     }
   };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-
     const phoneObj = parsePhoneNumberFromString(newUserPhone, "US");
     if (!phoneObj || !phoneObj.isValid()) {
       alert("Please enter a valid 10-digit phone number.");
@@ -111,76 +112,53 @@ const AdminPanel = () => {
       order: users.length,
     };
 
-    try {
-      await addDoc(collection(db, "accounts", accountId, "users"), newUser);
-      setNewUserName("");
-      setNewUserPhone("");
-    } catch (err) {
-      console.error("Error adding user:", err);
-    }
+    await addDoc(collection(db, "accounts", accountId, "users"), newUser);
+    setNewUserName("");
+    setNewUserPhone("");
   };
 
   const handleDeleteUser = async (userId) => {
-    try {
-      await deleteDoc(doc(db, "accounts", accountId, "users", userId));
-    } catch (err) {
-      console.error("Error deleting user:", err);
-    }
+    await deleteDoc(doc(db, "accounts", accountId, "users", userId));
   };
 
-  const handleUpdateUser = async (userId, updatedName, updatedPhone) => {
-    const phoneObj = parsePhoneNumberFromString(updatedPhone, "US");
+  const handleUpdateUser = async (userId, name, phone) => {
+    const phoneObj = parsePhoneNumberFromString(phone, "US");
     if (!phoneObj || !phoneObj.isValid()) {
       alert("Please enter a valid 10-digit phone number.");
       return;
     }
-  
-    try {
-      await updateDoc(doc(db, "accounts", accountId, "users", userId), {
-        name: updatedName,
-        phone_number: phoneObj.number,
-      });
-    } catch (err) {
-      console.error("Error updating user:", err);
-    }
+
+    await updateDoc(doc(db, "accounts", accountId, "users", userId), {
+      name,
+      phone_number: phoneObj.number,
+    });
   };
-  
 
   return (
     <Container maxWidth="md">
       <Paper elevation={3} sx={{ padding: 3, marginTop: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Admin Panel
-        </Typography>
+        <Typography variant="h4" gutterBottom>Admin Panel</Typography>
         <Button
           variant="outlined"
           color="secondary"
           sx={{ float: "right" }}
           onClick={async () => {
             await auth.signOut();
+            navigate("/login");
           }}
         >
           Logout
         </Button>
-        <Tabs
-          value={tabIndex}
-          onChange={(e, newIndex) => setTabIndex(newIndex)}
-        >
+
+        <Tabs value={tabIndex} onChange={(e, newIndex) => setTabIndex(newIndex)}>
           <Tab label="Call Order" />
           <Tab label="Add/Remove Users" />
         </Tabs>
 
         <TabPanel value={tabIndex} index={0}>
           <Typography variant="h6">Drag and drop to reorder users:</Typography>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={users.map((u) => u.id)}
-              strategy={verticalListSortingStrategy}
-            >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={users.map((u) => u.id)} strategy={verticalListSortingStrategy}>
               {users.map((user) => (
                 <SortableUserItem
                   key={user.id}
@@ -194,37 +172,30 @@ const AdminPanel = () => {
         </TabPanel>
 
         <TabPanel value={tabIndex} index={1}>
-          <Typography variant="h6">
-            {"Add a New User"}
-          </Typography>
-
           <UserForm
             onSubmit={handleAddUser}
             name={newUserName}
             phone={newUserPhone}
             setName={setNewUserName}
             setPhone={setNewUserPhone}
-            isEdit={false}
           />
 
-          <Typography variant="h6" sx={{ mt: 4 }}>
-            Current Users
-          </Typography>
-
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            <Chip label="Available" color="success" size="small" />
-            <Chip label="In Call" color="warning" size="small" />
-          </Box>
-
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {users.map((user) => (
-              <UserCard
-                key={user.id}
-                user={user}
-                onUpdate={handleUpdateUser}
-                onDelete={handleDeleteUser}
-              />
-            ))}
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6">Current Users</Typography>
+            <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+              <Chip label="Available" color="success" size="small" />
+              <Chip label="In Call" color="warning" size="small" />
+            </Box>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {users.map((user) => (
+                <UserCard
+                  key={user.id}
+                  user={user}
+                  onUpdate={handleUpdateUser}
+                  onDelete={handleDeleteUser}
+                />
+              ))}
+            </Box>
           </Box>
         </TabPanel>
       </Paper>
