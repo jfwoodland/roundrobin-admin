@@ -10,36 +10,36 @@ import LoginPage from "./LoginPage";
 import AccountCreationPage from "./components/AccountCreationPage";
 import ResetConfirmation from "./components/ResetConfirmation";
 import SignupPage from "./SignUpPage";
+import AcceptInvitePage from "./components/AcceptInvitePage";
 
 const App = () => {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [hasAccount, setHasAccount] = useState(false);
-  const [checkingAccount, setCheckingAccount] = useState(false);
+
+  const refreshAccountStatus = async (user) => {
+    if (!user) {
+      setUser(null);
+      setHasAccount(false);
+      return;
+    }
+
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    const hasAccountId = userDoc.exists() && !!userDoc.data().accountId;
+    setUser(user);
+    setHasAccount(hasAccountId);
+  };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        setCheckingAccount(true);
-
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        const hasAccountId = userDoc.exists() && !!userDoc.data().accountId;
-        setHasAccount(hasAccountId);
-        setCheckingAccount(false);
-      } else {
-        setUser(null);
-        setHasAccount(false);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      refreshAccountStatus(firebaseUser);
       setCheckingAuth(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  if (checkingAuth || (user && checkingAccount)) {
-    return <div>Loading...</div>;
-  }
+  if (checkingAuth) return <div>Loading...</div>;
 
   return (
     <Routes>
@@ -47,30 +47,18 @@ const App = () => {
         path="/"
         element={
           user ? (
-            hasAccount ? (
-              <AdminPanel />
-            ) : (
-              <Navigate to="/create-account" replace />
-            )
+            hasAccount ? <AdminPanel /> : <Navigate to="/create-account" />
           ) : (
-            <Navigate to="/login" replace />
+            <Navigate to="/login" />
           )
         }
       />
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/create-account"
-        element={
-          user && !hasAccount ? (
-            <AccountCreationPage onAccountCreated={() => setHasAccount(true)} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      <Route path="/reset-confirmation" element={<ResetConfirmation />} />
       <Route path="/signup" element={<SignupPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/create-account" element={<AccountCreationPage />} />
+      <Route path="/reset-confirmation" element={<ResetConfirmation />} />
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 };

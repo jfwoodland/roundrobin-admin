@@ -26,19 +26,6 @@ const AccountCreationPage = ({ onAccountCreated }) => {
   const [phoneError, setPhoneError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const checkExistingAccount = async () => {
-      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-      if (userDoc.exists() && userDoc.data().accountId) {
-        navigate("/");
-      }
-    };
-
-    if (auth.currentUser) {
-      checkExistingAccount();
-    }
-  }, [navigate]);
-
   const validatePhone = (value) => {
     const parsed = parsePhoneNumberFromString("+1" + value.replace(/\D/g, ""));
     if (!parsed || !parsed.isValid()) {
@@ -102,7 +89,7 @@ const AccountCreationPage = ({ onAccountCreated }) => {
       });
 
       if (onAccountCreated) onAccountCreated();
-      window.location.href = "/";
+      navigate("/");
     } catch (err) {
       console.error("Error creating account:", err);
       setError("Something went wrong. Please try again.");
