@@ -43,6 +43,8 @@ import TabPanel from "./components/TabPanel";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { formatDisplayPhone } from "./utils/phoneFormatters";
 import getAccountId from "./utils/getAccountId";
+import InviteForm from "./components/InviteForm";
+
 
 const AdminPanel = () => {
   const [users, setUsers] = useState([]);
@@ -179,6 +181,10 @@ const AdminPanel = () => {
             setName={setNewUserName}
             setPhone={setNewUserPhone}
           />
+          <Typography variant="h6" sx={{ mt: 4 }}>
+            Invite a New User
+          </Typography>
+          <InviteForm accountId={accountId} />
 
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6">Current Users</Typography>
