@@ -9,18 +9,24 @@ import AdminPanel from "./AdminPanel";
 import LoginPage from "./LoginPage";
 import AccountCreationPage from "./components/AccountCreationPage";
 import ResetConfirmation from "./components/ResetConfirmation";
+import SignupPage from "./SignUpPage";
 
 const App = () => {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [hasAccount, setHasAccount] = useState(false);
+  const [checkingAccount, setCheckingAccount] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
+        setCheckingAccount(true);
+
         const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        setHasAccount(userDoc.exists() && userDoc.data().accountId);
+        const hasAccountId = userDoc.exists() && !!userDoc.data().accountId;
+        setHasAccount(hasAccountId);
+        setCheckingAccount(false);
       } else {
         setUser(null);
         setHasAccount(false);
@@ -31,7 +37,9 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  if (checkingAuth) return <div>Loading...</div>;
+  if (checkingAuth || (user && checkingAccount)) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Routes>
@@ -42,20 +50,27 @@ const App = () => {
             hasAccount ? (
               <AdminPanel />
             ) : (
-              <Navigate to="/create-account" />
+              <Navigate to="/create-account" replace />
             )
           ) : (
-            <Navigate to="/login" />
+            <Navigate to="/login" replace />
           )
         }
       />
+      <Route path="/login" element={<LoginPage />} />
       <Route
-        path="/login"
-        element={<LoginPage onLogin={() => setUser(auth.currentUser)} />}
+        path="/create-account"
+        element={
+          user && !hasAccount ? (
+            <AccountCreationPage onAccountCreated={() => setHasAccount(true)} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
       />
-      <Route path="/create-account" element={<AccountCreationPage />} />
       <Route path="/reset-confirmation" element={<ResetConfirmation />} />
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

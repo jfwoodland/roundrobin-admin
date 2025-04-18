@@ -15,6 +15,8 @@ import {
   Link,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+
 
 const LoginPage = () => {
     const [email, setEmail] = useState("");
@@ -101,23 +103,21 @@ const LoginPage = () => {
           )}
         </Box>
 
-        <Box sx={{ mt: 2 }}>
-          <Link
-            component="button"
-            variant="body2"
-            onClick={() => setShowReset((prev) => !prev)}
-          >
-            {showReset ? "Back to Login" : "Forgot Password?"}
-          </Link>
-        </Box>
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2, display: "flex", justifyContent: "space-between" }}>
         <Link
             component="button"
             variant="body2"
-            onClick={() => navigate("/signup")}
-            >
+            onClick={() => setShowReset((prev) => !prev)}
+        >
+            {showReset ? "Back to Login" : "Forgot Password?"}
+        </Link>
+        <Link
+            component={RouterLink}
+            to="/signup"
+            variant="body2"
+        >
             Don't have an account? Sign up
-            </Link>
+        </Link>
         </Box>
       </Paper>
     </Container>
