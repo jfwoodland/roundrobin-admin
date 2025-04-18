@@ -10,57 +10,102 @@ import {
   Box,
 } from "@mui/material";
 import { db, auth } from "../firebaseConfig";
-import {
-  collection,
-  addDoc,
-  doc,
-  setDoc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, addDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+import {
+  formatDisplayPhone,
+  normalizePhoneForStorage,
+} from "../utils/phoneFormatters";
 
 const AccountCreationPage = ({ onAccountCreated }) => {
   const [accountName, setAccountName] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkExistingAccount = async () => {
+      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+      if (userDoc.exists() && userDoc.data().accountId) {
+        navigate("/");
+      }
+    };
+
+    if (auth.currentUser) {
+      checkExistingAccount();
+    }
+  }, [navigate]);
+
+  const validatePhone = (value) => {
+    const parsed = parsePhoneNumberFromString("+1" + value.replace(/\D/g, ""));
+    if (!parsed || !parsed.isValid()) {
+      setPhoneError("Please enter a valid 10-digit phone number");
+    } else {
+      setPhoneError("");
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value;
+    setAdminPhone(raw);
+    validatePhone(raw);
+  };
+
+  const handlePhoneBlur = () => {
+    const digits = adminPhone.replace(/\D/g, "");
+    if (digits.length === 10) {
+      const parsed = parsePhoneNumberFromString("+1" + digits);
+      if (parsed) {
+        setAdminPhone(parsed.formatNational());
+      }
+    }
+  };
 
   const handleCreateAccount = async (e) => {
     e.preventDefault();
     setError("");
-    setSubmitting(true);
 
-    if (!accountName.trim()) {
-      setError("Account name is required.");
-      setSubmitting(false);
+    if (!accountName.trim() || !adminName.trim()) {
+      setError("Account name and admin name are required.");
+      return;
+    }
+
+    const parsedPhone = parsePhoneNumberFromString(
+      "+1" + adminPhone.replace(/\D/g, "")
+    );
+    if (!parsedPhone || !parsedPhone.isValid()) {
+      setPhoneError("Invalid phone number.");
       return;
     }
 
     try {
-      // 1. Create account document
       const accountRef = await addDoc(collection(db, "accounts"), {
-        name: accountName.trim(),
+        name: accountName,
         createdBy: auth.currentUser.uid,
         createdAt: new Date(),
       });
 
-      // 2. Set user profile with accountId
       await setDoc(doc(db, "users", auth.currentUser.uid), {
         accountId: accountRef.id,
         role: "admin",
         email: auth.currentUser.email,
       });
 
-      // 3. Callback to App.js
-      onAccountCreated?.();
+      await addDoc(collection(db, "accounts", accountRef.id, "users"), {
+        name: adminName,
+        phone_number: parsedPhone.number,
+        status: "available",
+        order: 0,
+      });
 
-      // 4. Navigate to main dashboard
+      if (onAccountCreated) onAccountCreated();
       window.location.href = "/";
     } catch (err) {
       console.error("Error creating account:", err);
       setError("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -71,7 +116,7 @@ const AccountCreationPage = ({ onAccountCreated }) => {
           Create Your Account
         </Typography>
         <Typography variant="body2" gutterBottom>
-          You don’t belong to an account yet. Please create one to get started.
+          Please enter your account and contact information.
         </Typography>
 
         {error && <Alert severity="error">{error}</Alert>}
@@ -87,12 +132,27 @@ const AccountCreationPage = ({ onAccountCreated }) => {
             onChange={(e) => setAccountName(e.target.value)}
             required
           />
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={submitting}
-          >
-            {submitting ? "Creating..." : "Create Account"}
+
+          <TextField
+            label="Your Name"
+            value={adminName}
+            onChange={(e) => setAdminName(e.target.value)}
+            required
+          />
+
+          <TextField
+            label="Your Phone Number"
+            value={adminPhone}
+            onChange={handlePhoneChange}
+            onBlur={handlePhoneBlur}
+            required
+            placeholder="(555) 123-4567"
+            error={!!phoneError}
+            helperText={phoneError || ""}
+          />
+
+          <Button type="submit" variant="contained" disabled={!!phoneError}>
+            Create Account
           </Button>
         </Box>
       </Paper>
