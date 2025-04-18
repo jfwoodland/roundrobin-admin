@@ -32,6 +32,7 @@ import {
   Box,
   Chip,
   Button,
+  TextField,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
@@ -54,6 +55,8 @@ const AdminPanel = () => {
   const [newUserPhone, setNewUserPhone] = useState("");
   const sensors = useSensors(useSensor(PointerSensor));
   const navigate = useNavigate();
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
 
   // 🔐 Protect route
   useEffect(() => {
@@ -135,6 +138,22 @@ const AdminPanel = () => {
       phone_number: phoneObj.number,
     });
   };
+  
+  // Trigger Firestore write
+  const handleSendInvite = async () => {
+    try {
+      await addDoc(collection(db, "invites"), {
+        email: inviteEmail,
+        accountId, // use your current accountId
+        createdAt: new Date(),
+      });
+      setInviteMessage("Invite sent!");
+      setInviteEmail("");
+    } catch (err) {
+      console.error("Error sending invite:", err);
+      setInviteMessage("Error sending invite.");
+    }
+  };
 
   return (
     <Container maxWidth="md">
@@ -181,10 +200,27 @@ const AdminPanel = () => {
             setName={setNewUserName}
             setPhone={setNewUserPhone}
           />
-          <Typography variant="h6" sx={{ mt: 4 }}>
-            Invite a New User
-          </Typography>
-          <InviteForm accountId={accountId} />
+
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6">Invite New User</Typography>
+            <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+              <TextField
+                label="Email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                fullWidth
+              />
+              <Button variant="contained" onClick={handleSendInvite}>
+                Send Invite
+              </Button>
+            </Box>
+            {inviteMessage && (
+              <Typography variant="body2" color="secondary" sx={{ mt: 1 }}>
+                {inviteMessage}
+              </Typography>
+            )}
+          </Box>
+
 
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6">Current Users</Typography>
